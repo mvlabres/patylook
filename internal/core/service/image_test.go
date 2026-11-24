@@ -294,6 +294,31 @@ func (m *catalogProducts) Update(_ context.Context, p *domain.Product) error {
 	return nil
 }
 
+// catalogCategories and catalogBrands are lookup-only repositories for the SKU generation.
+type catalogCategories struct {
+	port.ProductCategoryRepository
+	items map[int]*domain.ProductCategory
+}
+
+func (m *catalogCategories) FindByID(_ context.Context, id int) (*domain.ProductCategory, error) {
+	if c, ok := m.items[id]; ok {
+		return c, nil
+	}
+	return nil, domain.ErrNotFound
+}
+
+type catalogBrands struct {
+	port.BrandRepository
+	items map[int]*domain.Brand
+}
+
+func (m *catalogBrands) FindByID(_ context.Context, id int) (*domain.Brand, error) {
+	if b, ok := m.items[id]; ok {
+		return b, nil
+	}
+	return nil, domain.ErrNotFound
+}
+
 // snapshotTx emulates a transaction: rows created inside fn disappear when fn fails.
 type snapshotTx struct {
 	products *catalogProducts
@@ -321,19 +346,29 @@ func (s *snapshotTx) WithinTx(ctx context.Context, fn func(context.Context) erro
 type catalogEnv struct {
 	svc      *CatalogService
 	products *catalogProducts
+	brands   *catalogBrands
 	images   *memImages
 	storage  *memStorage
 }
 
+// testSKU is what newProduct gets with the fixed clock (24/11/2026 10:00).
+const testSKU = "PER-FER-2411261000"
+
 func newCatalogEnv() *catalogEnv {
 	products := &catalogProducts{items: map[int]*domain.Product{}}
+	categories := &catalogCategories{items: map[int]*domain.ProductCategory{1: {ID: 1, Name: "Perfumaria"}}}
+	brands := &catalogBrands{items: map[int]*domain.Brand{
+		1: {ID: 1, Name: "Ferrari", IsActive: true},
+		2: {ID: 2, Name: "Água de Cheiro", IsActive: true},
+		3: {ID: 3, Name: "Antiga", IsActive: false},
+	}}
 	images := &memImages{rows: map[int]*domain.ProductImage{}}
 	storage := &memStorage{files: map[string][]byte{}}
 	clock := newClock()
 	return &catalogEnv{
-		svc: NewCatalogService(nil, products, nil, images, storage, &snapshotTx{products, images}, clock.now,
+		svc: NewCatalogService(categories, brands, products, nil, images, storage, &snapshotTx{products, images}, clock.now,
 			slog.New(slog.NewTextHandler(io.Discard, nil))),
-		products: products, images: images, storage: storage,
+		products: products, brands: brands, images: images, storage: storage,
 	}
 }
 
@@ -344,8 +379,9 @@ func upload(t testing.TB, name string) port.ImageUpload {
 	return port.ImageUpload{Filename: name, Data: encodePNG(t, solid(400, 300, color.RGBA{R: 200, A: 255}))}
 }
 
-func newProduct(sku string) *domain.Product {
-	return &domain.Product{Name: "Camiseta", SKU: sku, CategoryID: 1, Stock: 4}
+// newProduct is what the form submits: the SKU is never part of it.
+func newProduct() *domain.Product {
+	return &domain.Product{Name: "Perfume", CategoryID: 1, BrandID: 1, Stock: 4}
 }
 
 func (e *catalogEnv) fileNames() []string {
@@ -360,7 +396,7 @@ func (e *catalogEnv) fileNames() []string {
 func TestCreateProductStoresImages(t *testing.T) {
 	env := newCatalogEnv()
 	main := upload(t, "frente.png")
-	err := env.svc.CreateProduct(context.Background(), uploader, newProduct(" cam 1/x "), port.ProductImages{
+	err := env.svc.CreateProduct(context.Background(), uploader, newProduct(), port.ProductImages{
 		Main:  &main,
 		Extra: []port.ImageUpload{upload(t, "a.png"), upload(t, "b.png")},
 	})
@@ -368,7 +404,7 @@ func TestCreateProductStoresImages(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	want := []string{"CAM-1-X/imagem-01.jpg", "CAM-1-X/imagem-02.jpg", "CAM-1-X/principal.jpg"}
+	want := []string{testSKU + "/imagem-01.jpg", testSKU + "/imagem-02.jpg", testSKU + "/principal.jpg"}
 	if got := env.fileNames(); fmt.Sprint(got) != fmt.Sprint(want) {
 		t.Errorf("files = %v, want %v", got, want)
 	}
@@ -385,11 +421,14 @@ func TestCreateProductStoresImages(t *testing.T) {
 	for _, r := range rows {
 		byName[r.FileName] = r
 	}
-	if r := byName["principal.jpg"]; r.Path != "images/products/CAM-1-X/principal.jpg" || r.CreatedBy != 5 || !r.IsMain() {
+	if r := byName["principal.jpg"]; r.Path != "images/products/"+testSKU+"/principal.jpg" || r.CreatedBy != 5 || !r.IsMain() {
 		t.Errorf("main row: %+v", r)
 	}
-	if r := byName["imagem-02.jpg"]; r.SortOrder != 2 || r.Path != "images/products/CAM-1-X/imagem-02.jpg" {
+	if r := byName["imagem-02.jpg"]; r.SortOrder != 2 || r.Path != "images/products/"+testSKU+"/imagem-02.jpg" {
 		t.Errorf("extra row: %+v", r)
+	}
+	if p := env.products.items[1]; p.SKU != testSKU || p.BrandID != 1 || p.CategoryID != 1 {
+		t.Errorf("stored product: %+v", p)
 	}
 }
 
@@ -401,7 +440,7 @@ func TestCreateProductRequiresValidMainImage(t *testing.T) {
 	}
 	for name, imgs := range cases {
 		env := newCatalogEnv()
-		err := env.svc.CreateProduct(context.Background(), uploader, newProduct("SKU1"), imgs)
+		err := env.svc.CreateProduct(context.Background(), uploader, newProduct(), imgs)
 		var ve *domain.ValidationError
 		if !errors.As(err, &ve) || ve.Fields["main_image"] == "" {
 			t.Errorf("%s: expected main_image error, got %v", name, err)
@@ -415,7 +454,7 @@ func TestCreateProductRequiresValidMainImage(t *testing.T) {
 func TestCreateProductReportsBadExtraImages(t *testing.T) {
 	env := newCatalogEnv()
 	main := upload(t, "m.png")
-	err := env.svc.CreateProduct(context.Background(), uploader, newProduct("SKU1"), port.ProductImages{
+	err := env.svc.CreateProduct(context.Background(), uploader, newProduct(), port.ProductImages{
 		Main: &main, Extra: []port.ImageUpload{{Filename: "bad.txt", Data: []byte("text")}},
 	})
 	var ve *domain.ValidationError
@@ -428,7 +467,7 @@ func TestCreateProductRollsBackWhenDiskFails(t *testing.T) {
 	env := newCatalogEnv()
 	env.storage.failSave = "imagem-01.jpg"
 	main := upload(t, "m.png")
-	err := env.svc.CreateProduct(context.Background(), uploader, newProduct("SKU1"), port.ProductImages{
+	err := env.svc.CreateProduct(context.Background(), uploader, newProduct(), port.ProductImages{
 		Main: &main, Extra: []port.ImageUpload{upload(t, "a.png")},
 	})
 	if err == nil {
@@ -446,11 +485,11 @@ func TestCreateProductDuplicateSKUWritesNothing(t *testing.T) {
 	env := newCatalogEnv()
 	main := upload(t, "m.png")
 	imgs := port.ProductImages{Main: &main}
-	if err := env.svc.CreateProduct(context.Background(), uploader, newProduct("DUP"), imgs); err != nil {
+	if err := env.svc.CreateProduct(context.Background(), uploader, newProduct(), imgs); err != nil {
 		t.Fatal(err)
 	}
 	before := env.fileNames()
-	err := env.svc.CreateProduct(context.Background(), uploader, newProduct("DUP"), imgs)
+	err := env.svc.CreateProduct(context.Background(), uploader, newProduct(), imgs)
 	var ve *domain.ValidationError
 	if !errors.As(err, &ve) || ve.Fields["sku"] == "" {
 		t.Fatalf("expected sku error, got %v", err)
@@ -460,13 +499,57 @@ func TestCreateProductDuplicateSKUWritesNothing(t *testing.T) {
 	}
 }
 
-func TestCreateProductRejectsUnusableSKU(t *testing.T) {
+func TestCreateProductGeneratesSKUIgnoringInput(t *testing.T) {
 	env := newCatalogEnv()
 	main := upload(t, "m.png")
-	err := env.svc.CreateProduct(context.Background(), uploader, newProduct("///"), port.ProductImages{Main: &main})
+	p := newProduct()
+	p.SKU = "TYPED-BY-USER"
+	if err := env.svc.CreateProduct(context.Background(), uploader, p, port.ProductImages{Main: &main}); err != nil {
+		t.Fatal(err)
+	}
+	if p.SKU != testSKU {
+		t.Errorf("SKU = %q, want %q", p.SKU, testSKU)
+	}
+
+	// Accents are ignored and only the first three letters count.
+	main2 := upload(t, "m.png")
+	q := newProduct()
+	q.BrandID = 2
+	if err := env.svc.CreateProduct(context.Background(), uploader, q, port.ProductImages{Main: &main2}); err != nil {
+		t.Fatal(err)
+	}
+	if q.SKU != "PER-AGU-2411261000" {
+		t.Errorf("SKU = %q, want PER-AGU-2411261000", q.SKU)
+	}
+}
+
+func TestCreateProductValidatesBrand(t *testing.T) {
+	cases := map[string]int{"missing": 0, "unknown": 99, "inactive": 3}
+	for name, brandID := range cases {
+		env := newCatalogEnv()
+		main := upload(t, "m.png")
+		p := newProduct()
+		p.BrandID = brandID
+		err := env.svc.CreateProduct(context.Background(), uploader, p, port.ProductImages{Main: &main})
+		var ve *domain.ValidationError
+		if !errors.As(err, &ve) || ve.Fields["brand_id"] == "" {
+			t.Errorf("%s brand: expected brand_id error, got %v", name, err)
+		}
+		if len(env.products.items) != 0 || len(env.storage.files) != 0 {
+			t.Errorf("%s brand: nothing must be persisted", name)
+		}
+	}
+}
+
+func TestCreateProductRejectsUnknownCategory(t *testing.T) {
+	env := newCatalogEnv()
+	main := upload(t, "m.png")
+	p := newProduct()
+	p.CategoryID = 99
+	err := env.svc.CreateProduct(context.Background(), uploader, p, port.ProductImages{Main: &main})
 	var ve *domain.ValidationError
-	if !errors.As(err, &ve) || ve.Fields["sku"] == "" {
-		t.Errorf("expected sku error, got %v", err)
+	if !errors.As(err, &ve) || ve.Fields["product_category_id"] == "" {
+		t.Errorf("expected category error, got %v", err)
 	}
 }
 
@@ -529,33 +612,59 @@ func TestAddAndDeleteImages(t *testing.T) {
 	}
 }
 
-func TestSKUIsLockedWhileProductHasImages(t *testing.T) {
+func TestSKUCannotBeEdited(t *testing.T) {
 	env := newCatalogEnv()
 	ctx := context.Background()
 	main := upload(t, "m.png")
-	if err := env.svc.CreateProduct(ctx, uploader, newProduct("LOCK-1"), port.ProductImages{Main: &main}); err != nil {
+	if err := env.svc.CreateProduct(ctx, uploader, newProduct(), port.ProductImages{Main: &main}); err != nil {
 		t.Fatal(err)
 	}
 
-	changed := newProduct("OTHER")
-	changed.ID = 1
-	err := env.svc.UpdateProduct(ctx, changed)
-	var ve *domain.ValidationError
-	if !errors.As(err, &ve) || ve.Fields["sku"] == "" {
-		t.Fatalf("expected sku lock, got %v", err)
+	// Whatever SKU arrives with the edit, the stored one stays; other fields change.
+	changed := newProduct()
+	changed.ID, changed.SKU, changed.Name, changed.BrandID = 1, "OTHER", "Novo nome", 2
+	if err := env.svc.UpdateProduct(ctx, changed); err != nil {
+		t.Fatalf("editing other fields must work: %v", err)
+	}
+	got := env.products.items[1]
+	if got.SKU != testSKU || got.Name != "Novo nome" || got.BrandID != 2 {
+		t.Errorf("stored product: %+v", got)
+	}
+	if changed.SKU != testSKU {
+		t.Errorf("handler re-renders with the stored SKU, got %q", changed.SKU)
 	}
 
-	same := newProduct("LOCK-1")
-	same.ID, same.Name = 1, "Novo nome"
-	if err := env.svc.UpdateProduct(ctx, same); err != nil {
-		t.Errorf("editing other fields must work: %v", err)
-	}
-
-	// Without images the SKU can change freely.
+	// Legacy products have no SKU rule to follow and no brand; editing them keeps both.
 	env.products.items[2] = &domain.Product{ID: 2, SKU: "NOIMG", Name: "x"}
-	free := newProduct("NOIMG-2")
-	free.ID = 2
-	if err := env.svc.UpdateProduct(ctx, free); err != nil {
-		t.Errorf("sku change without images: %v", err)
+	legacy := newProduct()
+	legacy.ID, legacy.BrandID, legacy.SKU = 2, 0, "NOIMG-2"
+	if err := env.svc.UpdateProduct(ctx, legacy); err != nil {
+		t.Fatal(err)
+	}
+	if got := env.products.items[2]; got.SKU != "NOIMG" || got.BrandID != 0 {
+		t.Errorf("legacy product: %+v", got)
+	}
+}
+
+func TestUpdateProductRejectsInactiveBrand(t *testing.T) {
+	env := newCatalogEnv()
+	ctx := context.Background()
+	main := upload(t, "m.png")
+	if err := env.svc.CreateProduct(ctx, uploader, newProduct(), port.ProductImages{Main: &main}); err != nil {
+		t.Fatal(err)
+	}
+	p := newProduct()
+	p.ID, p.BrandID = 1, 3
+	err := env.svc.UpdateProduct(ctx, p)
+	var ve *domain.ValidationError
+	if !errors.As(err, &ve) || ve.Fields["brand_id"] == "" {
+		t.Fatalf("expected brand_id error, got %v", err)
+	}
+	// Keeping a brand that was deactivated after the product was registered is fine.
+	env.products.items[1].BrandID = 3
+	p = newProduct()
+	p.ID, p.BrandID = 1, 3
+	if err := env.svc.UpdateProduct(ctx, p); err != nil {
+		t.Errorf("unchanged inactive brand: %v", err)
 	}
 }

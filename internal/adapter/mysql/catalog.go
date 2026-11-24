@@ -81,22 +81,29 @@ func NewProductRepository(db *sql.DB, loc *time.Location) *ProductRepository {
 }
 
 // productSelect projects the price valid on a date (two date placeholders come first).
-const productSelect = "SELECT p.id, p.name, COALESCE(p.description, ''), p.sku, p.product_category_id, pc.name, " +
+// Joined names are aliased because ListSellable wraps this query in a derived table, where
+// duplicate column names are an error.
+const productSelect = "SELECT p.id, p.name, COALESCE(p.description, ''), p.sku, p.product_category_id, pc.name AS category_name, " +
+	"p.brand_id, b.name AS brand_name, " +
 	"p.stock, p.is_active, p.created_by, p.created_at, " +
 	"(SELECT pb.final_price FROM pricebook pb WHERE pb.product_id = p.id AND pb.valid_from <= ? " +
 	"AND (pb.valid_to IS NULL OR pb.valid_to >= ?) ORDER BY pb.valid_from DESC, pb.id DESC LIMIT 1) AS current_price " +
-	"FROM product p JOIN product_category pc ON pc.id = p.product_category_id "
+	"FROM product p JOIN product_category pc ON pc.id = p.product_category_id " +
+	"LEFT JOIN brand b ON b.id = p.brand_id "
 
 func scanProduct(s scanner) (*domain.Product, error) {
 	var (
-		p       domain.Product
-		created sql.NullTime
+		p         domain.Product
+		brandID   sql.NullInt64
+		brandName sql.NullString
+		created   sql.NullTime
 	)
-	err := s.Scan(&p.ID, &p.Name, &p.Description, &p.SKU, &p.CategoryID, &p.CategoryName,
+	err := s.Scan(&p.ID, &p.Name, &p.Description, &p.SKU, &p.CategoryID, &p.CategoryName, &brandID, &brandName,
 		&p.Stock, &p.IsActive, &p.CreatedBy, &created, nullMoneyCol{&p.CurrentPrice})
 	if err != nil {
 		return nil, err
 	}
+	p.BrandID, p.BrandName = int(brandID.Int64), brandName.String
 	p.CreatedAt = timeOrZero(created)
 	return &p, nil
 }
@@ -165,8 +172,8 @@ func (r *ProductRepository) ListSellable(ctx context.Context, on time.Time) ([]d
 
 func (r *ProductRepository) Create(ctx context.Context, p *domain.Product) error {
 	res, err := r.q(ctx).ExecContext(ctx,
-		"INSERT INTO product (name, description, sku, product_category_id, stock, is_active, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)",
-		p.Name, nullString(p.Description), p.SKU, p.CategoryID, p.Stock, p.IsActive, p.CreatedBy)
+		"INSERT INTO product (name, description, sku, product_category_id, brand_id, stock, is_active, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+		p.Name, nullString(p.Description), p.SKU, p.CategoryID, nullInt(p.BrandID), p.Stock, p.IsActive, p.CreatedBy)
 	if err != nil {
 		return translate(err)
 	}
@@ -176,9 +183,10 @@ func (r *ProductRepository) Create(ctx context.Context, p *domain.Product) error
 }
 
 func (r *ProductRepository) Update(ctx context.Context, p *domain.Product) error {
+	// The SKU is deliberately absent: it is set once, at creation.
 	_, err := r.q(ctx).ExecContext(ctx,
-		"UPDATE product SET name = ?, description = ?, sku = ?, product_category_id = ?, stock = ? WHERE id = ?",
-		p.Name, nullString(p.Description), p.SKU, p.CategoryID, p.Stock, p.ID)
+		"UPDATE product SET name = ?, description = ?, product_category_id = ?, brand_id = ?, stock = ? WHERE id = ?",
+		p.Name, nullString(p.Description), p.CategoryID, nullInt(p.BrandID), p.Stock, p.ID)
 	return translate(err)
 }
 

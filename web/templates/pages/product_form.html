@@ -5,19 +5,34 @@
   {{template "csrf" $.CSRF}}
   {{template "formerror" $.Errors}}
   {{template "field" (dict "Label" "Nome" "Name" "name" "Value" .Name "Errors" $.Errors "Required" true "Max" 150)}}
-  {{if .ID}}
-    {{template "field" (dict "Label" "SKU" "Name" "sku" "Value" .SKU "Errors" $.Errors "Required" true "Max" 45 "Hint" "O SKU nomeia a pasta das imagens e não pode ser alterado enquanto o produto tiver imagens")}}
-  {{else}}
-    {{template "field" (dict "Label" "SKU" "Name" "sku" "Value" .SKU "Errors" $.Errors "Required" true "Max" 45 "Hint" "Código único do produto. Também nomeia a pasta das imagens: images/products/SKU/")}}
-  {{end}}
   <div class="field{{if index $.Errors "product_category_id"}} has-error{{end}}">
     <label for="f-product_category_id">Categoria</label>
-    <select id="f-product_category_id" name="product_category_id" required>
+    <select id="f-product_category_id" name="product_category_id" required{{if not .ID}} data-sku-part="category"{{end}}>
       <option value="">Selecione</option>
       {{$cat := .CategoryID}}
       {{range $.Data.Categories}}<option value="{{.ID}}" {{if eq .ID $cat}}selected{{end}}>{{.Name}}</option>{{end}}
     </select>
     {{with index $.Errors "product_category_id"}}<small class="field-error">{{.}}</small>{{end}}
+  </div>
+  <div class="field{{if index $.Errors "brand_id"}} has-error{{end}}">
+    <label for="f-brand_id">Marca</label>
+    <select id="f-brand_id" name="brand_id"{{if not .ID}} required data-sku-part="brand"{{end}}>
+      <option value="">{{if .ID}}Sem marca{{else}}Selecione{{end}}</option>
+      {{$brand := .BrandID}}
+      {{range $.Data.Brands}}<option value="{{.ID}}" {{if eq .ID $brand}}selected{{end}}>{{.Name}}</option>{{end}}
+    </select>
+    {{if not $.Data.Brands}}<small class="hint">Nenhuma marca ativa. <a href="/brands/new">Cadastre uma marca</a> para continuar.</small>{{end}}
+    {{with index $.Errors "brand_id"}}<small class="field-error">{{.}}</small>{{end}}
+  </div>
+  <div class="field{{if index $.Errors "sku"}} has-error{{end}}">
+    <label for="f-sku">SKU</label>
+    <input id="f-sku" type="text" value="{{.SKU}}" readonly{{if not .ID}} placeholder="Selecione categoria e marca" data-sku-preview{{end}}>
+    {{if .ID}}
+      <small class="hint">O SKU é gerado no cadastro, nomeia a pasta das imagens e não pode ser alterado.</small>
+    {{else}}
+      <small class="hint">Gerado automaticamente: 3 primeiras letras da categoria e da marca + data e hora (ddmmaaHHMM). A data e hora definitivas são as do momento do cadastro. Nomeia a pasta das imagens: images/products/SKU/</small>
+    {{end}}
+    {{with index $.Errors "sku"}}<small class="field-error">{{.}}</small>{{end}}
   </div>
   {{template "field" (dict "Label" "Estoque" "Name" "stock" "Value" .Stock "Errors" $.Errors "Required" true "Type" "number" "Mode" "numeric")}}
   <div class="field{{if index $.Errors "description"}} has-error{{end}}">
@@ -91,3 +106,5 @@
 {{end}}
 {{end}}
 {{end}}
+
+{{define "scripts"}}<script src="/static/js/product_form.js"></script>{{end}}

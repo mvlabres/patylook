@@ -88,26 +88,81 @@ func TestValidCPF(t *testing.T) {
 	}
 }
 
-func TestPricebookFinalPrice(t *testing.T) {
-	p := &Pricebook{
-		ProductCost:   Money(5000),
-		PackagingCost: Money(500),
-		LogisticsCost: Money(300),
-		OtherCosts:    Money(200),
-		MarkupPercent: Percent(5000), // 50%
-		ValidFrom:     time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
-	}
-	if err := p.Validate(); err != nil {
-		t.Fatal(err)
-	}
-	if p.TotalCost() != 6000 || p.FinalPrice != 9000 {
-		t.Errorf("cost=%d final=%d", p.TotalCost(), p.FinalPrice)
+func TestPricebookMarkupIsDerivedFromFinalPrice(t *testing.T) {
+	from := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	entry := func(final Money) *Pricebook {
+		return &Pricebook{
+			ProductCost: 5000, PackagingCost: 500, LogisticsCost: 300, OtherCosts: 200, // total 60,00
+			FinalPrice: final, ValidFrom: from,
+		}
 	}
 
-	to := p.ValidFrom.AddDate(0, 0, -1)
-	p.ValidTo = &to
-	if err := p.Validate(); err == nil {
+	tests := []struct {
+		final Money
+		want  Percent
+	}{
+		{9000, 5000},     // 90,00 over 60,00 = 50%
+		{6000, 0},        // sold at cost
+		{7000, 1667},     // 16,666...% rounds to 16,67%
+		{6001, 2},        // 0,0166...% rounds to 0,02%
+		{12345, 10575},   // 105,75%
+		{600000, 990000}, // 9.900%
+	}
+	for _, tt := range tests {
+		p := entry(tt.final)
+		if err := p.Validate(); err != nil {
+			t.Fatalf("final %d: %v", tt.final, err)
+		}
+		if p.TotalCost() != 6000 || p.MarkupPercent != tt.want {
+			t.Errorf("final %d: cost=%d markup=%d, want %d", tt.final, p.TotalCost(), p.MarkupPercent, tt.want)
+		}
+	}
+
+	// Applying the markup to the cost gives the informed price back (to the cent, for round markups).
+	p := entry(9000)
+	_ = p.Validate()
+	if got := p.TotalCost() + p.TotalCost().Percent(p.MarkupPercent); got != 9000 {
+		t.Errorf("round trip = %d", got)
+	}
+
+	to := from.AddDate(0, 0, -1)
+	bad := entry(9000)
+	bad.ValidTo = &to
+	if err := bad.Validate(); err == nil {
 		t.Error("expected error when valid_to is before valid_from")
+	}
+}
+
+func TestPricebookFinalPriceRules(t *testing.T) {
+	from := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	field := func(p *Pricebook) map[string]string {
+		err := p.Validate()
+		if err == nil {
+			return nil
+		}
+		return err.(*ValidationError).Fields
+	}
+
+	if f := field(&Pricebook{ProductCost: 5000, FinalPrice: 4999, ValidFrom: from}); f["final_price"] == "" {
+		t.Error("a price below the total cost must be refused")
+	}
+	if f := field(&Pricebook{ProductCost: 5000, FinalPrice: -1, ValidFrom: from}); f["final_price"] == "" {
+		t.Error("a negative price must be refused")
+	}
+	if f := field(&Pricebook{ProductCost: 100, FinalPrice: 100 * 100001, ValidFrom: from}); f["final_price"] == "" {
+		t.Error("a markup above 9999,99% must be refused")
+	}
+	if f := field(&Pricebook{ProductCost: 100, FinalPrice: maxMoney + 1, ValidFrom: from}); f["final_price"] == "" {
+		t.Error("a price above the column limit must be refused")
+	}
+	if f := field(&Pricebook{ProductCost: -1, FinalPrice: 100, ValidFrom: from}); f["product_cost"] == "" {
+		t.Error("a negative cost must be refused")
+	}
+
+	// Without any cost a percentage cannot be derived: markup is 0.
+	free := &Pricebook{FinalPrice: 2500, ValidFrom: from}
+	if err := free.Validate(); err != nil || free.MarkupPercent != 0 {
+		t.Errorf("zero cost: err=%v markup=%d", err, free.MarkupPercent)
 	}
 }
 

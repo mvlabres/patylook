@@ -1,0 +1,14 @@
+{{define "content"}}
+{{with .Data.Brand}}
+<h1>{{if .ID}}Editar marca{{else}}Nova marca{{end}}</h1>
+<form method="post" action="{{if .ID}}/brands/{{.ID}}{{else}}/brands{{end}}" class="form">
+  {{template "csrf" $.CSRF}}
+  {{template "formerror" $.Errors}}
+  {{template "field" (dict "Label" "Nome" "Name" "name" "Value" .Name "Errors" $.Errors "Required" true "Max" 100)}}
+  <div class="form-actions">
+    <button type="submit" class="btn btn-primary">Salvar</button>
+    <a class="btn" href="/brands">Cancelar</a>
+  </div>
+</form>
+{{end}}
+{{end}}

@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 
 	"patylook/internal/core/domain"
@@ -10,6 +11,7 @@ import (
 
 type CatalogService struct {
 	categories port.ProductCategoryRepository
+	brands     port.BrandRepository
 	products   port.ProductRepository
 	prices     port.PricebookRepository
 	images     port.ProductImageRepository
@@ -22,15 +24,17 @@ type CatalogService struct {
 var _ port.CatalogService = (*CatalogService)(nil)
 
 func NewCatalogService(
-	c port.ProductCategoryRepository, p port.ProductRepository, pb port.PricebookRepository,
+	c port.ProductCategoryRepository, b port.BrandRepository, p port.ProductRepository, pb port.PricebookRepository,
 	images port.ProductImageRepository, storage port.ImageStorage, tx port.Transactor, now Clock, log *slog.Logger,
 ) *CatalogService {
-	return &CatalogService{categories: c, products: p, prices: pb, images: images, storage: storage, tx: tx, now: now, log: log}
+	return &CatalogService{categories: c, brands: b, products: p, prices: pb, images: images, storage: storage, tx: tx, now: now, log: log}
 }
 
 var (
 	categoryConflicts = map[string]string{"name": "Já existe uma categoria com esse nome"}
-	productConflicts  = map[string]string{"sku": "Já existe um produto com esse SKU"}
+	// The SKU is generated from category, brand and the minute of creation, so a collision means
+	// the same category/brand pair was registered within the same minute.
+	productConflicts = map[string]string{"sku": "Já existe um produto com esse SKU (mesma categoria e marca no mesmo minuto). Aguarde um minuto e tente novamente"}
 )
 
 func (s *CatalogService) ListCategories(ctx context.Context) ([]domain.ProductCategory, error) {
@@ -74,14 +78,46 @@ func (s *CatalogService) GetProduct(ctx context.Context, id int) (*domain.Produc
 
 func (s *CatalogService) CreateProduct(ctx context.Context, actor *domain.User, p *domain.Product, imgs port.ProductImages) error {
 	p.Normalize()
+	p.SKU = "" // never typed: generated below from category, brand and the creation time
 	v := domain.NewValidationError()
 	if err := p.Validate(); err != nil {
 		mergeValidation(v, err)
 	}
-	folder, err := domain.ImageFolder(p.SKU)
-	if err != nil && p.SKU != "" {
-		v.Add("sku", "SKU deve conter ao menos uma letra ou número, pois nomeia a pasta de imagens")
+	if p.BrandID == 0 {
+		v.Add("brand_id", "Marca é obrigatória")
 	}
+
+	var category, brand string
+	if p.CategoryID > 0 {
+		c, err := s.categories.FindByID(ctx, p.CategoryID)
+		switch {
+		case errors.Is(err, domain.ErrNotFound):
+			v.Add("product_category_id", "Categoria não encontrada")
+		case err != nil:
+			return err
+		default:
+			category = c.Name
+		}
+	}
+	if p.BrandID > 0 {
+		name, err := s.activeBrandName(ctx, p.BrandID)
+		if err != nil {
+			if !errors.As(err, new(*domain.ValidationError)) {
+				return err
+			}
+			mergeValidation(v, err)
+		}
+		brand = name
+	}
+	var folder string
+	if category != "" && brand != "" {
+		p.SKU = domain.GenerateSKU(category, brand, s.now())
+		var err error
+		if folder, err = domain.ImageFolder(p.SKU); err != nil {
+			return err // unreachable: a generated SKU is always a safe folder name
+		}
+	}
+
 	if imgs.Main == nil {
 		v.Add("main_image", "A imagem principal é obrigatória")
 	}
@@ -94,7 +130,7 @@ func (s *CatalogService) CreateProduct(ctx context.Context, actor *domain.User, 
 	p.CreatedBy = actor.ID
 	p.IsActive = true
 	var written []string
-	err = s.tx.WithinTx(ctx, func(ctx context.Context) error {
+	err := s.tx.WithinTx(ctx, func(ctx context.Context) error {
 		if err := s.products.Create(ctx, p); err != nil {
 			return conflictToValidation(err, productConflicts)
 		}
@@ -107,26 +143,35 @@ func (s *CatalogService) CreateProduct(ctx context.Context, actor *domain.User, 
 	return nil
 }
 
+// activeBrandName returns the name of an existing, active brand, or a validation error on brand_id.
+func (s *CatalogService) activeBrandName(ctx context.Context, id int) (string, error) {
+	b, err := s.brands.FindByID(ctx, id)
+	if errors.Is(err, domain.ErrNotFound) {
+		return "", invalidField("brand_id", "Marca não encontrada")
+	}
+	if err != nil {
+		return "", err
+	}
+	if !b.IsActive {
+		return "", invalidField("brand_id", "Marca inativa")
+	}
+	return b.Name, nil
+}
+
 func (s *CatalogService) UpdateProduct(ctx context.Context, p *domain.Product) error {
 	p.Normalize()
-	if err := p.Validate(); err != nil {
-		return err
-	}
 	current, err := s.products.FindByID(ctx, p.ID)
 	if err != nil {
 		return err
 	}
-	if p.SKU != current.SKU {
-		// The SKU names the image folder, so it is locked while images exist.
-		imgs, err := s.images.ListByProduct(ctx, p.ID)
-		if err != nil {
+	// The SKU is generated at creation and names the image folder: it is never edited.
+	p.SKU = current.SKU
+	if err := p.Validate(); err != nil {
+		return err
+	}
+	if p.BrandID > 0 && p.BrandID != current.BrandID {
+		if _, err := s.activeBrandName(ctx, p.BrandID); err != nil {
 			return err
-		}
-		if len(imgs) > 0 {
-			return invalidField("sku", "O SKU não pode ser alterado enquanto o produto tiver imagens (a pasta de imagens usa o SKU)")
-		}
-		if _, err := domain.ImageFolder(p.SKU); err != nil {
-			return invalidField("sku", "SKU deve conter ao menos uma letra ou número, pois nomeia a pasta de imagens")
 		}
 	}
 	return conflictToValidation(s.products.Update(ctx, p), productConflicts)
@@ -146,13 +191,13 @@ func (s *CatalogService) AddPrice(ctx context.Context, actor *domain.User, p *do
 		to := dateOf(*p.ValidTo)
 		p.ValidTo = &to
 	}
+	// Validate derives the markup from the informed final price.
 	if err := p.Validate(); err != nil {
 		return err
 	}
 	if _, err := s.products.FindByID(ctx, p.ProductID); err != nil {
 		return err
 	}
-	p.ComputeFinalPrice()
 	p.CreatedBy = actor.ID
 	return s.prices.Create(ctx, p)
 }
