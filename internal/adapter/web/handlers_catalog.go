@@ -28,6 +28,21 @@ func (s *Server) productFormPage(w http.ResponseWriter, r *http.Request, status 
 		s.fail(w, r, err)
 		return
 	}
+	brands, err := s.svc.Brands.ListActive(r.Context())
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	// A product keeps showing its brand after the brand is deactivated.
+	if product.BrandID != 0 && product.BrandName != "" {
+		listed := false
+		for _, b := range brands {
+			listed = listed || b.ID == product.BrandID
+		}
+		if !listed {
+			brands = append(brands, domain.Brand{ID: product.BrandID, Name: product.BrandName})
+		}
+	}
 	title := "Novo produto"
 	var images []domain.ProductImage
 	if product.ID != 0 {
@@ -41,6 +56,7 @@ func (s *Server) productFormPage(w http.ResponseWriter, r *http.Request, status 
 	p.Errors = orEmpty(errs)
 	p.Data["Product"] = product
 	p.Data["Categories"] = cats
+	p.Data["Brands"] = brands
 	p.Data["Images"] = images
 	p.Data["HasMain"] = false
 	for _, img := range images {
@@ -76,12 +92,14 @@ func (s *Server) productEditPage(w http.ResponseWriter, r *http.Request, status,
 	s.productFormPage(w, r, status, product, errs)
 }
 
+// productFromForm reads the editable fields. The SKU is not among them: the service generates it
+// when the product is created and keeps it afterwards.
 func productFromForm(f *form) *domain.Product {
 	return &domain.Product{
 		Name:        f.str("name"),
 		Description: f.str("description"),
-		SKU:         f.str("sku"),
 		CategoryID:  f.integer("product_category_id"),
+		BrandID:     f.integer("brand_id"),
 		Stock:       f.intField("stock", "Estoque"),
 	}
 }
@@ -192,10 +210,10 @@ func (s *Server) priceCreate(w http.ResponseWriter, r *http.Request) {
 	entry := &domain.Pricebook{
 		ProductID:     id,
 		ProductCost:   f.money("product_cost", "Custo do produto", true),
-		MarkupPercent: f.percent("markup_percent", "Markup", true),
 		PackagingCost: f.money("packaging_cost", "Custo de embalagem", false),
 		LogisticsCost: f.money("logistics_cost", "Custo logístico", false),
 		OtherCosts:    f.money("other_costs", "Outros custos", false),
+		FinalPrice:    f.money("final_price", "Preço final", true),
 	}
 	if from := f.date("valid_from", "Início da vigência", s.opts.Location); from != nil {
 		entry.ValidFrom = *from

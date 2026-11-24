@@ -10,16 +10,21 @@
 {{end}}
 
 <h2>Nova vigência de preço</h2>
-<p class="muted">O preço final é o custo total (produto + embalagem + logística + outros) acrescido do markup. A vigência mais recente que cobre a data do pedido é a utilizada.</p>
+<p class="muted">Informe os custos e o preço final de venda. O markup é calculado automaticamente: (preço final − custo total) ÷ custo total, em que o custo total soma produto, embalagem, logística e outros. A vigência mais recente que cobre a data do pedido é a utilizada.</p>
 {{with .Data.Form}}
-<form method="post" action="/products/{{$.Data.Product.ID}}/prices" class="form form-grid">
+<form method="post" action="/products/{{$.Data.Product.ID}}/prices" class="form form-grid" id="price-form">
   {{template "csrf" $.CSRF}}
   {{template "formerror" $.Errors}}
   {{template "field" (dict "Label" "Custo do produto (R$)" "Name" "product_cost" "Value" (moneyInput .ProductCost) "Errors" $.Errors "Required" true "Mode" "decimal")}}
   {{template "field" (dict "Label" "Custo de embalagem (R$)" "Name" "packaging_cost" "Value" (moneyInput .PackagingCost) "Errors" $.Errors "Mode" "decimal")}}
   {{template "field" (dict "Label" "Custo logístico (R$)" "Name" "logistics_cost" "Value" (moneyInput .LogisticsCost) "Errors" $.Errors "Mode" "decimal")}}
   {{template "field" (dict "Label" "Outros custos (R$)" "Name" "other_costs" "Value" (moneyInput .OtherCosts) "Errors" $.Errors "Mode" "decimal")}}
-  {{template "field" (dict "Label" "Markup (%)" "Name" "markup_percent" "Value" (percentInput .MarkupPercent) "Errors" $.Errors "Required" true "Mode" "decimal")}}
+  {{template "field" (dict "Label" "Preço final (R$)" "Name" "final_price" "Value" (moneyInput .FinalPrice) "Errors" $.Errors "Required" true "Mode" "decimal" "Hint" "Preço de venda. O markup é calculado a partir dele.")}}
+  <div class="field">
+    <label for="f-markup_percent">Markup (%)</label>
+    <input id="f-markup_percent" type="text" value="{{percentInput .MarkupPercent}}" readonly>
+    <small class="hint">Calculado, não pode ser editado.</small>
+  </div>
   {{template "field" (dict "Label" "Válido a partir de" "Name" "valid_from" "Value" (dateInput .ValidFrom) "Errors" $.Errors "Required" true "Type" "date")}}
   {{template "field" (dict "Label" "Válido até (opcional)" "Name" "valid_to" "Value" (datePtrInput .ValidTo) "Errors" $.Errors "Type" "date")}}
   <div class="form-actions">
@@ -53,3 +58,5 @@
 <p class="empty">Nenhum preço cadastrado. Sem preço vigente o produto não pode ser vendido.</p>
 {{end}}
 {{end}}
+
+{{define "scripts"}}<script src="/static/js/product_prices.js"></script>{{end}}

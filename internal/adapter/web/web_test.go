@@ -64,6 +64,7 @@ var (
 	samplePrice    = domain.Money(5250)
 	sampleProduct  = domain.Product{ID: 1, Name: "Camiseta", SKU: "CAM-1", CategoryID: 1, CategoryName: "Roupas", Stock: 3, IsActive: true, CurrentPrice: &samplePrice}
 	sampleCustomer = domain.Customer{ID: 1, Name: "Maria", Document: "52998224725", Phone: "11999999999", Email: "m@x.com", IsActive: true}
+	sampleBrand    = domain.Brand{ID: 1, Name: "Natura", IsActive: true, CreatedBy: 1, CreatedByName: "Ana", CreatedAt: time.Now()}
 	samplePayment  = domain.PaymentType{ID: 1, Name: "Cartão", Description: "Crédito", SurchargePercent: 500}
 	sampleOrder    = domain.Order{
 		ID: 7, Status: domain.OrderOpen, CustomerName: "Maria", PaymentTypeName: "Cartão", UserName: "Ana",
@@ -159,6 +160,22 @@ func (customerStub) Save(context.Context, *domain.Customer) error {
 	return invalid("document", "CPF inválido")
 }
 
+type brandStub struct{ port.BrandService }
+
+func (brandStub) List(context.Context, int, string) (port.Page[domain.Brand], error) {
+	return port.Page[domain.Brand]{Items: []domain.Brand{sampleBrand}, Total: 1, Page: 1, PageSize: 20}, nil
+}
+func (brandStub) ListActive(context.Context) ([]domain.Brand, error) {
+	return []domain.Brand{sampleBrand}, nil
+}
+func (brandStub) Get(context.Context, int) (*domain.Brand, error) {
+	b := sampleBrand
+	return &b, nil
+}
+func (brandStub) Save(context.Context, *domain.User, *domain.Brand) error {
+	return invalid("name", "Já existe uma marca com esse nome")
+}
+
 type paymentStub struct{ port.PaymentTypeService }
 
 func (paymentStub) List(context.Context) ([]domain.PaymentType, error) {
@@ -235,7 +252,7 @@ func newApp(t *testing.T) *app {
 		t.Fatal(err)
 	}
 	srv, err := web.NewServer(web.Services{
-		Auth: auth, Users: userStub{}, Catalog: catalogStub{}, Customers: customerStub{},
+		Auth: auth, Users: userStub{}, Catalog: catalogStub{}, Brands: brandStub{}, Customers: customerStub{},
 		Payments: paymentStub{}, Orders: orderStub{}, Dashboard: dashboardStub{},
 	}, web.Options{Assets: assets.Files, Location: loc, Logger: slog.New(slog.NewTextHandler(io.Discard, nil))})
 	if err != nil {
@@ -409,6 +426,9 @@ func TestPagesRender(t *testing.T) {
 		"/categories":                          "Roupas",
 		"/categories/new":                      "Nova categoria",
 		"/categories/1/edit":                   "Editar categoria",
+		"/brands":                              "Natura",
+		"/brands/new":                          "Nova marca",
+		"/brands/1/edit":                       "Editar marca",
 		"/customers":                           "529.982.247-25",
 		"/customers/new":                       "Novo cliente",
 		"/customers/1/edit":                    "Editar cliente",
@@ -449,6 +469,73 @@ func TestPagesRender(t *testing.T) {
 	}
 }
 
+func TestProductFormFieldsAndReadOnlySKU(t *testing.T) {
+	a := newApp(t)
+	admin := a.login("ana")
+
+	res := a.do("GET", "/products/new", nil, admin, nil)
+	if res.Code != 200 {
+		t.Fatalf("GET /products/new: %d", res.Code)
+	}
+	// Order: nome, categoria, marca, SKU, estoque, descrição.
+	last := -1
+	for _, id := range []string{`id="f-name"`, `id="f-product_category_id"`, `id="f-brand_id"`, `id="f-sku"`, `id="f-stock"`, `id="f-description"`} {
+		i := strings.Index(res.body, id)
+		if i < 0 || i < last {
+			t.Fatalf("field %s missing or out of order (at %d, previous at %d)", id, i, last)
+		}
+		last = i
+	}
+	if !strings.Contains(res.body, "Natura") {
+		t.Error("the brand select must list the active brands")
+	}
+	if !strings.Contains(res.body, "data-sku-preview") || !strings.Contains(res.body, "/static/js/product_form.js") {
+		t.Error("new product form must preview the SKU")
+	}
+	// The SKU is read-only and has no name, so it is never submitted.
+	if !strings.Contains(res.body, `id="f-sku" type="text"`) || strings.Contains(res.body, `name="sku"`) {
+		t.Error("the SKU input must be read-only and unnamed")
+	}
+	if !strings.Contains(res.body, "readonly") {
+		t.Error("SKU input must be readonly")
+	}
+
+	// The edit form shows the stored SKU, also read-only, without the preview script behavior.
+	res = a.do("GET", "/products/1/edit", nil, admin, nil)
+	if res.Code != 200 || !strings.Contains(res.body, `value="CAM-1" readonly`) {
+		t.Errorf("edit form must show the SKU read-only: %d\n%.600s", res.Code, res.body)
+	}
+	if strings.Contains(res.body, "data-sku-preview") || strings.Contains(res.body, `name="sku"`) {
+		t.Error("edit form must not preview or submit the SKU")
+	}
+}
+
+func TestPriceFormInformsFinalPriceAndShowsReadOnlyMarkup(t *testing.T) {
+	a := newApp(t)
+	admin := a.login("ana")
+
+	res := a.do("GET", "/products/1/prices", nil, admin, nil)
+	if res.Code != 200 {
+		t.Fatalf("GET /products/1/prices: %d", res.Code)
+	}
+	// The final price is typed (and submitted); the markup is shown, read-only and never submitted.
+	if !strings.Contains(res.body, `name="final_price"`) {
+		t.Error("final price must be an input of the form")
+	}
+	if strings.Contains(res.body, `name="markup_percent"`) {
+		t.Error("markup must not be submitted")
+	}
+	if !strings.Contains(res.body, `id="f-markup_percent" type="text" value="0,00" readonly`) {
+		t.Errorf("markup must be visible and read-only\n%.1500s", res.body)
+	}
+	if !strings.Contains(res.body, "/static/js/product_prices.js") {
+		t.Error("page must load the live markup script")
+	}
+	if i, j := strings.Index(res.body, `id="f-final_price"`), strings.Index(res.body, `id="f-markup_percent"`); i < 0 || j < i {
+		t.Error("final price must come before the markup")
+	}
+}
+
 func TestFormErrorsRerenderWithStatus422(t *testing.T) {
 	a := newApp(t)
 	admin := a.login("ana")
@@ -461,8 +548,10 @@ func TestFormErrorsRerenderWithStatus422(t *testing.T) {
 	}{
 		{"/products", url.Values{"name": {"X"}, "sku": {"A"}, "product_category_id": {"1"}, "stock": {"1"}}, "Já existe um produto com esse SKU"},
 		{"/products", url.Values{"name": {"X"}, "stock": {"abc"}}, "Estoque inválido"},
-		{"/products/1/prices", url.Values{"product_cost": {"abc"}, "markup_percent": {"10"}, "valid_from": {"2026-01-01"}}, "Custo do produto inválido"},
+		{"/products/1/prices", url.Values{"product_cost": {"abc"}, "final_price": {"10"}, "valid_from": {"2026-01-01"}}, "Custo do produto inválido"},
+		{"/products/1/prices", url.Values{"product_cost": {"10"}, "final_price": {"x"}, "valid_from": {"2026-01-01"}}, "Preço final inválido"},
 		{"/categories", url.Values{"name": {""}}, "Nome é obrigatório"},
+		{"/brands", url.Values{"name": {"Natura"}}, "Já existe uma marca com esse nome"},
 		{"/customers", url.Values{"name": {"Z"}, "document": {"1"}}, "CPF inválido"},
 		{"/orders", url.Values{"customer_id": {"1"}, "payment_type_id": {"1"}, "product_id": {"1"}, "quantity": {"2"}, "item_discount": {""}}, "Estoque insuficiente"},
 		{"/orders", url.Values{"customer_id": {"1"}, "payment_type_id": {"1"}, "product_id": {"1"}, "quantity": {"x"}}, "Quantidade inválida"},

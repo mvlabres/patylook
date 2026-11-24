@@ -78,6 +78,7 @@ func run(envFile string) error {
 	tx := mysql.NewTxManager(db)
 	userRepo := mysql.NewUserRepository(db)
 	categoryRepo := mysql.NewProductCategoryRepository(db)
+	brandRepo := mysql.NewBrandRepository(db)
 	productRepo := mysql.NewProductRepository(db, cfg.Location)
 	priceRepo := mysql.NewPricebookRepository(db)
 	customerRepo := mysql.NewCustomerRepository(db)
@@ -110,8 +111,9 @@ func run(envFile string) error {
 	server, err := web.NewServer(web.Services{
 		Auth:      auth,
 		Users:     users,
-		Catalog:   service.NewCatalogService(categoryRepo, productRepo, priceRepo, imageRepo, imageStore, tx, now, log),
+		Catalog:   service.NewCatalogService(categoryRepo, brandRepo, productRepo, priceRepo, imageRepo, imageStore, tx, now, log),
 		Customers: service.NewCustomerService(customerRepo),
+		Brands:    service.NewBrandService(brandRepo),
 		Payments:  service.NewPaymentTypeService(paymentRepo),
 		Orders:    service.NewOrderService(orderRepo, productRepo, priceRepo, customerRepo, paymentRepo, tx, now),
 		Dashboard: service.NewDashboardService(orderRepo, productRepo, now),

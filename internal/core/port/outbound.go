@@ -96,6 +96,15 @@ type CustomerRepository interface {
 	SetActive(ctx context.Context, id int, active bool) error
 }
 
+type BrandRepository interface {
+	FindByID(ctx context.Context, id int) (*domain.Brand, error)
+	List(ctx context.Context, p ListParams) ([]domain.Brand, int, error)
+	ListActive(ctx context.Context) ([]domain.Brand, error)
+	Create(ctx context.Context, b *domain.Brand) error
+	Update(ctx context.Context, b *domain.Brand) error
+	SetActive(ctx context.Context, id int, active bool) error
+}
+
 type PaymentTypeRepository interface {
 	List(ctx context.Context) ([]domain.PaymentType, error)
 	FindByID(ctx context.Context, id int) (*domain.PaymentType, error)

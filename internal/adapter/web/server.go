@@ -19,6 +19,7 @@ type Services struct {
 	Auth      port.AuthService
 	Users     port.UserService
 	Catalog   port.CatalogService
+	Brands    port.BrandService
 	Customers port.CustomerService
 	Payments  port.PaymentTypeService
 	Orders    port.OrderService
@@ -97,6 +98,13 @@ func (s *Server) Handler() (http.Handler, error) {
 	mux.Handle("GET /categories/{id}/edit", auth(s.categoryEdit))
 	mux.Handle("POST /categories/{id}", auth(s.categoryUpdate))
 	mux.Handle("POST /categories/{id}/delete", auth(s.categoryDelete))
+
+	mux.Handle("GET /brands", auth(s.brandList))
+	mux.Handle("GET /brands/new", auth(s.brandNew))
+	mux.Handle("POST /brands", auth(s.brandCreate))
+	mux.Handle("GET /brands/{id}/edit", auth(s.brandEdit))
+	mux.Handle("POST /brands/{id}", auth(s.brandUpdate))
+	mux.Handle("POST /brands/{id}/active", auth(s.brandSetActive))
 
 	mux.Handle("GET /customers", auth(s.customerList))
 	mux.Handle("GET /customers/new", auth(s.customerNew))

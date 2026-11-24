@@ -33,5 +33,19 @@ func VerifySchema(ctx context.Context, db *sql.DB) error {
 	if n == 0 {
 		return fmt.Errorf("tabela product_images não encontrada; execute o bloco dela no schema.sql (somente esse bloco)")
 	}
+	if err := db.QueryRowContext(ctx,
+		"SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'brand'").Scan(&n); err != nil {
+		return fmt.Errorf("verificar schema: %w", err)
+	}
+	if n == 0 {
+		return fmt.Errorf("tabela brand não encontrada; execute o bloco dela no schema.sql (somente esse bloco)")
+	}
+	if err := db.QueryRowContext(ctx,
+		"SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'product' AND COLUMN_NAME = 'brand_id'").Scan(&n); err != nil {
+		return fmt.Errorf("verificar schema: %w", err)
+	}
+	if n == 0 {
+		return fmt.Errorf("a coluna product.brand_id não existe; aplique migrations/002_add_product_brand.sql")
+	}
 	return nil
 }

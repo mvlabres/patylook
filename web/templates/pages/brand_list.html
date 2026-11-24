@@ -1,0 +1,40 @@
+{{define "content"}}
+<div class="section-head">
+  <h1>Marcas</h1>
+  <a class="btn btn-primary" href="/brands/new">Nova marca</a>
+</div>
+
+<form method="get" action="/brands" class="search">
+  <input type="search" name="q" value="{{.Data.Query}}" placeholder="Buscar por nome">
+  <button class="btn" type="submit">Buscar</button>
+</form>
+
+{{if .Data.Brands}}
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Nome</th><th>Cadastrada em</th><th>Cadastrada por</th><th>Status</th><th></th></tr></thead>
+  <tbody>
+  {{range .Data.Brands}}
+    <tr class="{{if not .IsActive}}inactive{{end}}">
+      <td>{{.Name}}</td>
+      <td>{{datetime .CreatedAt}}</td>
+      <td>{{.CreatedByName}}</td>
+      <td>{{if .IsActive}}<span class="badge badge-completed">Ativa</span>{{else}}<span class="badge badge-canceled">Inativa</span>{{end}}</td>
+      <td class="actions">
+        <a href="/brands/{{.ID}}/edit">Editar</a>
+        <form method="post" action="/brands/{{.ID}}/active" class="inline" {{if .IsActive}}data-confirm="Desativar esta marca?"{{end}}>
+          {{template "csrf" $.CSRF}}
+          <input type="hidden" name="active" value="{{if .IsActive}}0{{else}}1{{end}}">
+          <button type="submit" class="btn-link">{{if .IsActive}}Desativar{{else}}Ativar{{end}}</button>
+        </form>
+      </td>
+    </tr>
+  {{end}}
+  </tbody>
+</table>
+</div>
+{{template "pagination" .Data.Pager}}
+{{else}}
+<p class="empty">Nenhuma marca encontrada.</p>
+{{end}}
+{{end}}

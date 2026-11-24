@@ -64,6 +64,9 @@ func duplicateField(msg string) string {
 
 func nullString(s string) sql.NullString { return sql.NullString{String: s, Valid: s != ""} }
 
+// nullInt maps 0 to NULL, for optional foreign keys.
+func nullInt(i int) sql.NullInt64 { return sql.NullInt64{Int64: int64(i), Valid: i != 0} }
+
 func dateParam(t time.Time) string { return t.Format("2006-01-02") }
 
 func nullDate(t *time.Time) any {

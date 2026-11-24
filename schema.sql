@@ -71,6 +71,29 @@ ENGINE = InnoDB;
 
 
 -- -----------------------------------------------------
+-- Table `patylook`.`brand`
+-- Marcas dos produtos (product.brand_id referencia esta tabela).
+-- -----------------------------------------------------
+DROP TABLE IF EXISTS `patylook`.`brand` ;
+
+CREATE TABLE IF NOT EXISTS `patylook`.`brand` (
+  `id` INT NOT NULL AUTO_INCREMENT,
+  `name` VARCHAR(100) NOT NULL,
+  `is_active` BOOLEAN NOT NULL DEFAULT TRUE,
+  `created_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+  `created_by` INT NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE INDEX `name_UNIQUE` (`name` ASC),
+  INDEX `fk_brand_created_by_idx` (`created_by` ASC),
+  CONSTRAINT `fk_brand_created_by`
+    FOREIGN KEY (`created_by`)
+    REFERENCES `patylook`.`user` (`id`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION)
+ENGINE = InnoDB;
+
+
+-- -----------------------------------------------------
 -- Table `patylook`.`product`
 -- -----------------------------------------------------
 DROP TABLE IF EXISTS `patylook`.`product` ;
@@ -81,6 +104,7 @@ CREATE TABLE IF NOT EXISTS `patylook`.`product` (
   `description` VARCHAR(500) NULL,
   `sku` VARCHAR(45) NOT NULL,
   `product_category_id` INT NOT NULL,
+  `brand_id` INT NULL,
   `created_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
   `stock` INT NOT NULL,
   `is_active` BOOLEAN NOT NULL DEFAULT TRUE,
@@ -88,10 +112,16 @@ CREATE TABLE IF NOT EXISTS `patylook`.`product` (
   PRIMARY KEY (`id`),
   UNIQUE INDEX `sku_UNIQUE` (`sku` ASC),
   INDEX `fk_product_product_category1_idx` (`product_category_id` ASC),
+  INDEX `fk_product_brand_idx` (`brand_id` ASC),
   INDEX `fk_product_created_by_idx` (`created_by` ASC),
   CONSTRAINT `fk_product_product_category1`
     FOREIGN KEY (`product_category_id`)
     REFERENCES `patylook`.`product_category` (`id`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION,
+  CONSTRAINT `fk_product_brand`
+    FOREIGN KEY (`brand_id`)
+    REFERENCES `patylook`.`brand` (`id`)
     ON DELETE NO ACTION
     ON UPDATE NO ACTION,
   CONSTRAINT `fk_product_created_by`

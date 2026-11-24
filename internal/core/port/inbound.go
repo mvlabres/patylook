@@ -99,6 +99,16 @@ type CustomerService interface {
 	SetActive(ctx context.Context, id int, active bool) error
 }
 
+type BrandService interface {
+	List(ctx context.Context, page int, search string) (Page[domain.Brand], error)
+	// ListActive returns every active brand, for selection lists.
+	ListActive(ctx context.Context) ([]domain.Brand, error)
+	Get(ctx context.Context, id int) (*domain.Brand, error)
+	// Save creates the brand when ID == 0 (recording actor as its creator) or updates it.
+	Save(ctx context.Context, actor *domain.User, b *domain.Brand) error
+	SetActive(ctx context.Context, id int, active bool) error
+}
+
 type PaymentTypeService interface {
 	List(ctx context.Context) ([]domain.PaymentType, error)
 	Get(ctx context.Context, id int) (*domain.PaymentType, error)

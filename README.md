@@ -28,8 +28,9 @@ define um acréscimo percentual.
 | Autenticação | Login por usuário e senha, sessão no servidor com cookie, logout, troca da própria senha |
 | Painel | Pedidos abertos e concluídos do mês, total concluído, produtos com estoque baixo, pedidos recentes |
 | Produtos | Cadastro, edição, ativar/desativar, busca por nome ou SKU, categorias |
-| Preços | Histórico de vigências por produto: custo, embalagem, logística, outros custos e markup geram o preço final |
+| Preços | Histórico de vigências por produto: custo, embalagem, logística e outros custos mais o preço final informado; o markup é calculado a partir deles, `(preço final − custo total) ÷ custo total`, e não é editável |
 | Imagens | Imagem principal obrigatória + carrossel por produto (veja [Imagens dos produtos](#imagens-dos-produtos)) |
+| Marcas | Cadastro, edição, busca e ativar/desativar; registra quem cadastrou e quando (`product.brand_id` liga o produto à marca) |
 | Mostruário | Banner de cada produto ativo; ao clicar, a imagem é destacada e as demais ficam num carrossel |
 | Clientes | Cadastro com CPF validado, ativar/desativar, busca |
 | Formas de pagamento | Cadastro com acréscimo percentual |
@@ -64,7 +65,8 @@ subir, com mensagem explicando o que falta, se:
 
 1. a tabela `user` não existir no banco configurado (`DB_NAME`);
 2. a coluna `user.password` for estreita demais para um hash bcrypt;
-3. a tabela `product_images` não existir.
+3. a tabela `product_images` não existir;
+4. a tabela `brand` não existir.
 
 ### Ajustes necessários no banco
 
@@ -80,6 +82,18 @@ nem remove dados).
 
 **b) Tabela `product_images`.** Execute apenas o bloco dela, que está no final do `schema.sql`
 (a seção `Table patylook.product_images`). Os caminhos das imagens de cada produto ficam nela.
+
+**c) Marcas.** Execute apenas o bloco da tabela `brand` (seção `Table patylook.brand` do `schema.sql`)
+e, no banco existente, a coluna que liga o produto à marca:
+
+```sql
+ALTER TABLE `product`
+  ADD COLUMN `brand_id` INT NULL AFTER `product_category_id`,
+  ADD INDEX `fk_product_brand_idx` (`brand_id` ASC),
+  ADD CONSTRAINT `fk_product_brand`
+    FOREIGN KEY (`brand_id`) REFERENCES `brand` (`id`)
+    ON DELETE NO ACTION ON UPDATE NO ACTION;
+```
 
 ### Senhas de usuários que já existiam
 
