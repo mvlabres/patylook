@@ -1,0 +1,16 @@
+{{define "content"}}
+{{with .Data.PaymentType}}
+<h1>{{if .ID}}Editar forma de pagamento{{else}}Nova forma de pagamento{{end}}</h1>
+<form method="post" action="{{if .ID}}/payment-types/{{.ID}}{{else}}/payment-types{{end}}" class="form">
+  {{template "csrf" $.CSRF}}
+  {{template "formerror" $.Errors}}
+  {{template "field" (dict "Label" "Nome" "Name" "name" "Value" .Name "Errors" $.Errors "Required" true "Max" 45)}}
+  {{template "field" (dict "Label" "Descrição" "Name" "description" "Value" .Description "Errors" $.Errors "Max" 45)}}
+  {{template "field" (dict "Label" "Acréscimo (%)" "Name" "surcharge_percent" "Value" (percentInput .SurchargePercent) "Errors" $.Errors "Mode" "decimal" "Hint" "Aplicado sobre o total do pedido após o desconto")}}
+  <div class="form-actions">
+    <button type="submit" class="btn btn-primary">Salvar</button>
+    <a class="btn" href="/payment-types">Cancelar</a>
+  </div>
+</form>
+{{end}}
+{{end}}

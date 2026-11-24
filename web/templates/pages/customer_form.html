@@ -1,0 +1,17 @@
+{{define "content"}}
+{{with .Data.Customer}}
+<h1>{{if .ID}}Editar cliente{{else}}Novo cliente{{end}}</h1>
+<form method="post" action="{{if .ID}}/customers/{{.ID}}{{else}}/customers{{end}}" class="form">
+  {{template "csrf" $.CSRF}}
+  {{template "formerror" $.Errors}}
+  {{template "field" (dict "Label" "Nome" "Name" "name" "Value" .Name "Errors" $.Errors "Required" true "Max" 100)}}
+  {{template "field" (dict "Label" "CPF" "Name" "document" "Value" .Document "Errors" $.Errors "Required" true "Max" 14 "Mode" "numeric" "Hint" "Apenas números ou com pontuação")}}
+  {{template "field" (dict "Label" "Telefone" "Name" "phone" "Value" .Phone "Errors" $.Errors "Required" true "Max" 20 "Type" "tel")}}
+  {{template "field" (dict "Label" "E-mail" "Name" "email" "Value" .Email "Errors" $.Errors "Required" true "Max" 45 "Type" "email")}}
+  <div class="form-actions">
+    <button type="submit" class="btn btn-primary">Salvar</button>
+    <a class="btn" href="/customers">Cancelar</a>
+  </div>
+</form>
+{{end}}
+{{end}}

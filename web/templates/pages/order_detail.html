@@ -1,0 +1,57 @@
+{{define "content"}}
+{{with .Data.Order}}
+<div class="section-head">
+  <div>
+    <h1>Pedido #{{.ID}} {{template "statusBadge" .Status}}</h1>
+    <p class="muted">Criado em {{datetime .CreatedAt}} por {{.UserName}}</p>
+  </div>
+  <div class="actions-bar">
+    {{if eq .Status "open"}}
+    <form method="post" action="/orders/{{.ID}}/status" class="inline" data-confirm="Concluir este pedido?">
+      {{template "csrf" $.CSRF}}<input type="hidden" name="status" value="completed">
+      <button type="submit" class="btn btn-primary">Concluir</button>
+    </form>
+    {{end}}
+    {{if or (eq .Status "open") (eq .Status "completed")}}
+    <form method="post" action="/orders/{{.ID}}/status" class="inline" data-confirm="Cancelar este pedido? O estoque dos itens será devolvido.">
+      {{template "csrf" $.CSRF}}<input type="hidden" name="status" value="canceled">
+      <button type="submit" class="btn btn-danger">Cancelar pedido</button>
+    </form>
+    {{end}}
+    <a class="btn" href="/orders">Voltar</a>
+  </div>
+</div>
+
+<dl class="details">
+  <div><dt>Cliente</dt><dd>{{.CustomerName}}</dd></div>
+  <div><dt>Forma de pagamento</dt><dd>{{.PaymentTypeName}}</dd></div>
+</dl>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Produto</th><th>SKU</th><th class="num">Qtd.</th><th class="num">Preço unit.</th><th class="num">Desconto</th><th class="num">Total</th></tr></thead>
+  <tbody>
+  {{range .Items}}
+    <tr>
+      <td>{{.ProductName}}</td>
+      <td><code>{{.ProductSKU}}</code></td>
+      <td class="num">{{.Quantity}}</td>
+      <td class="num">{{money .UnitPrice}}</td>
+      <td class="num">{{money .Discount}}</td>
+      <td class="num">{{money (lineTotal .)}}</td>
+    </tr>
+  {{end}}
+  </tbody>
+</table>
+</div>
+
+<dl class="totals">
+  <div><dt>Subtotal</dt><dd>{{money .Subtotal}}</dd></div>
+  <div><dt>Desconto</dt><dd>{{money .Discount}}</dd></div>
+  <div><dt>Acréscimo do pagamento</dt><dd>{{money .PaymentAddition}}</dd></div>
+  <div class="grand"><dt>Total</dt><dd>{{money .Total}}</dd></div>
+</dl>
+
+{{if .Notes}}<h2>Observações</h2><p class="notes">{{.Notes}}</p>{{end}}
+{{end}}
+{{end}}

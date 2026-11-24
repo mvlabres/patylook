@@ -1,0 +1,56 @@
+{{define "content"}}
+<div class="section-head">
+  <h1>Mostruário</h1>
+  <a class="btn" href="/products">Gerenciar produtos</a>
+</div>
+
+<form method="get" action="/showcase" class="search">
+  <input type="search" name="q" value="{{.Data.Query}}" placeholder="Buscar por nome ou SKU">
+  <button class="btn" type="submit">Buscar</button>
+</form>
+
+{{if .Data.Items}}
+<div class="showcase-grid">
+  {{range .Data.Items}}
+  {{$name := .Product.Name}}
+  <article class="product-card" data-name="{{$name}}">
+    {{with .Main}}
+    <button type="button" class="banner" data-gallery-open aria-label="Ver imagens de {{$name}}">
+      <img src="{{.URL}}" alt="{{$name}}" loading="lazy">
+    </button>
+    {{else}}
+    <div class="banner banner-empty"><span>Sem imagem</span></div>
+    {{end}}
+    <div class="card-body">
+      <h2>{{$name}}</h2>
+      <p class="muted">{{.Product.CategoryName}} · <code>{{.Product.SKU}}</code></p>
+      <p class="price">{{moneyPtr .Product.CurrentPrice}}</p>
+      <p class="stock {{if le .Product.Stock 5}}warn{{end}}">{{if gt .Product.Stock 0}}{{.Product.Stock}} em estoque{{else}}Esgotado{{end}}</p>
+      {{with .Product.Description}}<p class="desc">{{.}}</p>{{end}}
+    </div>
+    <ul class="gallery-data" hidden>
+      {{range .Images}}<li data-src="{{.URL}}"></li>{{end}}
+    </ul>
+  </article>
+  {{end}}
+</div>
+{{template "pagination" .Data.Pager}}
+
+<dialog id="gallery" class="gallery" aria-label="Imagens do produto">
+  <div class="gallery-inner">
+    <button type="button" class="gallery-close" id="gallery-close" aria-label="Fechar">×</button>
+    <p class="gallery-title" id="gallery-title"></p>
+    <div class="gallery-stage">
+      <button type="button" class="gallery-nav" id="gallery-prev" aria-label="Imagem anterior">‹</button>
+      <img id="gallery-image" alt="">
+      <button type="button" class="gallery-nav" id="gallery-next" aria-label="Próxima imagem">›</button>
+    </div>
+    <div class="gallery-thumbs" id="gallery-thumbs"></div>
+  </div>
+</dialog>
+{{else}}
+<p class="empty">Nenhum produto ativo para exibir.</p>
+{{end}}
+{{end}}
+
+{{define "scripts"}}<script src="/static/js/showcase.js"></script>{{end}}

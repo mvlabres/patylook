@@ -1,0 +1,32 @@
+{{define "content"}}
+<div class="section-head">
+  <h1>Formas de pagamento</h1>
+  <a class="btn btn-primary" href="/payment-types/new">Nova forma de pagamento</a>
+</div>
+<p class="muted">Apenas classificam o pedido e definem um acréscimo percentual; o sistema não processa pagamentos.</p>
+{{if .Data.PaymentTypes}}
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Nome</th><th>Descrição</th><th class="num">Acréscimo</th><th></th></tr></thead>
+  <tbody>
+  {{range .Data.PaymentTypes}}
+    <tr>
+      <td>{{.Name}}</td>
+      <td>{{.Description}}</td>
+      <td class="num">{{percent .SurchargePercent}}</td>
+      <td class="actions">
+        <a href="/payment-types/{{.ID}}/edit">Editar</a>
+        <form method="post" action="/payment-types/{{.ID}}/delete" class="inline" data-confirm="Excluir esta forma de pagamento?">
+          {{template "csrf" $.CSRF}}
+          <button type="submit" class="btn-link danger">Excluir</button>
+        </form>
+      </td>
+    </tr>
+  {{end}}
+  </tbody>
+</table>
+</div>
+{{else}}
+<p class="empty">Nenhuma forma de pagamento cadastrada. Cadastre ao menos uma para criar pedidos.</p>
+{{end}}
+{{end}}

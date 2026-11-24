@@ -1,0 +1,55 @@
+{{define "content"}}
+{{with .Data.Product}}
+<div class="section-head">
+  <div>
+    <h1>Preços</h1>
+    <p class="muted">{{.Name}} · <code>{{.SKU}}</code></p>
+  </div>
+  <a class="btn" href="/products">Voltar</a>
+</div>
+{{end}}
+
+<h2>Nova vigência de preço</h2>
+<p class="muted">O preço final é o custo total (produto + embalagem + logística + outros) acrescido do markup. A vigência mais recente que cobre a data do pedido é a utilizada.</p>
+{{with .Data.Form}}
+<form method="post" action="/products/{{$.Data.Product.ID}}/prices" class="form form-grid">
+  {{template "csrf" $.CSRF}}
+  {{template "formerror" $.Errors}}
+  {{template "field" (dict "Label" "Custo do produto (R$)" "Name" "product_cost" "Value" (moneyInput .ProductCost) "Errors" $.Errors "Required" true "Mode" "decimal")}}
+  {{template "field" (dict "Label" "Custo de embalagem (R$)" "Name" "packaging_cost" "Value" (moneyInput .PackagingCost) "Errors" $.Errors "Mode" "decimal")}}
+  {{template "field" (dict "Label" "Custo logístico (R$)" "Name" "logistics_cost" "Value" (moneyInput .LogisticsCost) "Errors" $.Errors "Mode" "decimal")}}
+  {{template "field" (dict "Label" "Outros custos (R$)" "Name" "other_costs" "Value" (moneyInput .OtherCosts) "Errors" $.Errors "Mode" "decimal")}}
+  {{template "field" (dict "Label" "Markup (%)" "Name" "markup_percent" "Value" (percentInput .MarkupPercent) "Errors" $.Errors "Required" true "Mode" "decimal")}}
+  {{template "field" (dict "Label" "Válido a partir de" "Name" "valid_from" "Value" (dateInput .ValidFrom) "Errors" $.Errors "Required" true "Type" "date")}}
+  {{template "field" (dict "Label" "Válido até (opcional)" "Name" "valid_to" "Value" (datePtrInput .ValidTo) "Errors" $.Errors "Type" "date")}}
+  <div class="form-actions">
+    <button type="submit" class="btn btn-primary">Adicionar preço</button>
+  </div>
+</form>
+{{end}}
+
+<h2>Histórico</h2>
+{{if .Data.Prices}}
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Vigência</th><th class="num">Produto</th><th class="num">Embalagem</th><th class="num">Logística</th><th class="num">Outros</th><th class="num">Markup</th><th class="num">Preço final</th><th>Cadastrado por</th></tr></thead>
+  <tbody>
+  {{range .Data.Prices}}
+    <tr>
+      <td>{{date .ValidFrom}} → {{datePtr .ValidTo}}</td>
+      <td class="num">{{money .ProductCost}}</td>
+      <td class="num">{{money .PackagingCost}}</td>
+      <td class="num">{{money .LogisticsCost}}</td>
+      <td class="num">{{money .OtherCosts}}</td>
+      <td class="num">{{percent .MarkupPercent}}</td>
+      <td class="num"><strong>{{money .FinalPrice}}</strong></td>
+      <td>{{.CreatedByName}} <span class="muted">{{datetime .CreatedAt}}</span></td>
+    </tr>
+  {{end}}
+  </tbody>
+</table>
+</div>
+{{else}}
+<p class="empty">Nenhum preço cadastrado. Sem preço vigente o produto não pode ser vendido.</p>
+{{end}}
+{{end}}

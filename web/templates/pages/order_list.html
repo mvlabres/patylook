@@ -1,0 +1,41 @@
+{{define "content"}}
+<div class="section-head">
+  <h1>Pedidos</h1>
+  <a class="btn btn-primary" href="/orders/new">Novo pedido</a>
+</div>
+
+<form method="get" action="/orders" class="search">
+  <input type="search" name="q" value="{{.Data.Query}}" placeholder="Buscar por cliente ou nº do pedido">
+  <select name="status">
+    <option value="">Todos os status</option>
+    <option value="open" {{if eq .Data.Status "open"}}selected{{end}}>Aberto</option>
+    <option value="completed" {{if eq .Data.Status "completed"}}selected{{end}}>Concluído</option>
+    <option value="canceled" {{if eq .Data.Status "canceled"}}selected{{end}}>Cancelado</option>
+  </select>
+  <button class="btn" type="submit">Filtrar</button>
+</form>
+
+{{if .Data.Orders}}
+<div class="table-wrap">
+<table>
+  <thead><tr><th>#</th><th>Data</th><th>Cliente</th><th>Pagamento</th><th>Atendente</th><th>Status</th><th class="num">Total</th></tr></thead>
+  <tbody>
+  {{range .Data.Orders}}
+    <tr>
+      <td><a href="/orders/{{.ID}}">#{{.ID}}</a></td>
+      <td>{{datetime .CreatedAt}}</td>
+      <td>{{.CustomerName}}</td>
+      <td>{{.PaymentTypeName}}</td>
+      <td>{{.UserName}}</td>
+      <td>{{template "statusBadge" .Status}}</td>
+      <td class="num">{{money .Total}}</td>
+    </tr>
+  {{end}}
+  </tbody>
+</table>
+</div>
+{{template "pagination" .Data.Pager}}
+{{else}}
+<p class="empty">Nenhum pedido encontrado.</p>
+{{end}}
+{{end}}

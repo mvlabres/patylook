@@ -1,0 +1,28 @@
+{{define "csrf"}}<input type="hidden" name="csrf_token" value="{{.}}">{{end}}
+
+{{define "formerror"}}{{with index . ""}}<div class="alert alert-error" role="alert">{{.}}</div>{{end}}{{end}}
+
+{{/* Text input. Args: Label, Name, Value, Errors; optional: Type, Required, Max, Mode, Hint */}}
+{{define "field"}}
+<div class="field{{if index .Errors .Name}} has-error{{end}}">
+  <label for="f-{{.Name}}">{{.Label}}</label>
+  <input id="f-{{.Name}}" name="{{.Name}}" type="{{or (index . "Type") "text"}}" value="{{.Value}}"
+    {{- if index . "Required"}} required{{end}}
+    {{- with index . "Max"}} maxlength="{{.}}"{{end}}
+    {{- with index . "Mode"}} inputmode="{{.}}"{{end}}>
+  {{with index . "Hint"}}<small class="hint">{{.}}</small>{{end}}
+  {{with index .Errors .Name}}<small class="field-error">{{.}}</small>{{end}}
+</div>
+{{end}}
+
+{{define "pagination"}}
+{{if gt .Pages 1}}
+<nav class="pagination" aria-label="Paginação">
+  {{if .PrevURL}}<a href="{{.PrevURL}}">« Anterior</a>{{end}}
+  <span>Página {{.Page}} de {{.Pages}} ({{.Total}} registros)</span>
+  {{if .NextURL}}<a href="{{.NextURL}}">Próxima »</a>{{end}}
+</nav>
+{{end}}
+{{end}}
+
+{{define "statusBadge"}}<span class="badge badge-{{.}}">{{statusLabel .}}</span>{{end}}

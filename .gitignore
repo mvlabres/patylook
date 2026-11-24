@@ -1,0 +1,14 @@
+# Local configuration and secrets
+.env
+
+# Build output
+/bin/
+/dist/
+*.exe
+
+# Test and tooling artifacts
+*.test
+*.out
+coverage.*
+.idea/
+.vscode/

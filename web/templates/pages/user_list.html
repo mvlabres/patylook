@@ -1,0 +1,43 @@
+{{define "content"}}
+<div class="section-head">
+  <h1>Usuários</h1>
+  <a class="btn btn-primary" href="/users/new">Novo usuário</a>
+</div>
+
+<form method="get" action="/users" class="search">
+  <input type="search" name="q" value="{{.Data.Query}}" placeholder="Buscar por nome, usuário ou e-mail">
+  <button class="btn" type="submit">Buscar</button>
+</form>
+
+{{if .Data.Users}}
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Nome</th><th>Usuário</th><th>E-mail</th><th>Categoria</th><th>Status</th><th></th></tr></thead>
+  <tbody>
+  {{range .Data.Users}}
+    <tr class="{{if not .IsActive}}inactive{{end}}">
+      <td>{{.Name}}</td>
+      <td><code>{{.Username}}</code></td>
+      <td>{{.Email}}</td>
+      <td>{{.CategoryName}}</td>
+      <td>{{if .IsActive}}<span class="badge badge-completed">Ativo</span>{{else}}<span class="badge badge-canceled">Inativo</span>{{end}}</td>
+      <td class="actions">
+        <a href="/users/{{.ID}}/edit">Editar</a>
+        {{if ne .ID $.User.ID}}
+        <form method="post" action="/users/{{.ID}}/active" class="inline" {{if .IsActive}}data-confirm="Desativar este usuário? Ele será desconectado."{{end}}>
+          {{template "csrf" $.CSRF}}
+          <input type="hidden" name="active" value="{{if .IsActive}}0{{else}}1{{end}}">
+          <button type="submit" class="btn-link">{{if .IsActive}}Desativar{{else}}Ativar{{end}}</button>
+        </form>
+        {{end}}
+      </td>
+    </tr>
+  {{end}}
+  </tbody>
+</table>
+</div>
+{{template "pagination" .Data.Pager}}
+{{else}}
+<p class="empty">Nenhum usuário encontrado.</p>
+{{end}}
+{{end}}

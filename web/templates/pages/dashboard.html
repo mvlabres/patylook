@@ -1,0 +1,38 @@
+{{define "content"}}
+{{with .Data.Dashboard}}
+<h1>Painel</h1>
+<p class="muted">Resumo desde {{date .PeriodStart}}</p>
+
+<div class="cards">
+  <div class="card"><span class="card-label">Pedidos abertos</span><span class="card-value">{{.Summary.OpenOrders}}</span></div>
+  <div class="card"><span class="card-label">Pedidos concluídos</span><span class="card-value">{{.Summary.CompletedOrders}}</span></div>
+  <div class="card"><span class="card-label">Total concluído</span><span class="card-value">{{money .Summary.CompletedTotal}}</span></div>
+  <div class="card {{if gt .LowStock 0}}card-warn{{end}}"><span class="card-label">Produtos com estoque baixo</span><span class="card-value">{{.LowStock}}</span></div>
+</div>
+
+<div class="section-head">
+  <h2>Pedidos recentes</h2>
+  <a class="btn btn-primary" href="/orders/new">Novo pedido</a>
+</div>
+{{if .RecentOrders}}
+<div class="table-wrap">
+<table>
+  <thead><tr><th>#</th><th>Data</th><th>Cliente</th><th>Status</th><th class="num">Total</th></tr></thead>
+  <tbody>
+  {{range .RecentOrders}}
+    <tr>
+      <td><a href="/orders/{{.ID}}">#{{.ID}}</a></td>
+      <td>{{datetime .CreatedAt}}</td>
+      <td>{{.CustomerName}}</td>
+      <td>{{template "statusBadge" .Status}}</td>
+      <td class="num">{{money .Total}}</td>
+    </tr>
+  {{end}}
+  </tbody>
+</table>
+</div>
+{{else}}
+<p class="empty">Nenhum pedido ainda.</p>
+{{end}}
+{{end}}
+{{end}}

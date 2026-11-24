@@ -1,0 +1,15 @@
+{{define "content"}}
+{{with .Data.Category}}
+<h1>{{if .ID}}Editar categoria{{else}}Nova categoria{{end}}</h1>
+<form method="post" action="{{if .ID}}/categories/{{.ID}}{{else}}/categories{{end}}" class="form">
+  {{template "csrf" $.CSRF}}
+  {{template "formerror" $.Errors}}
+  {{template "field" (dict "Label" "Nome" "Name" "name" "Value" .Name "Errors" $.Errors "Required" true "Max" 45)}}
+  {{template "field" (dict "Label" "Descrição" "Name" "description" "Value" .Description "Errors" $.Errors "Max" 45)}}
+  <div class="form-actions">
+    <button type="submit" class="btn btn-primary">Salvar</button>
+    <a class="btn" href="/categories">Cancelar</a>
+  </div>
+</form>
+{{end}}
+{{end}}

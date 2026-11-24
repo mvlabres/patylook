@@ -1,0 +1,18 @@
+{{define "content"}}
+<div class="login-card">
+  <h1>Patylook</h1>
+  <p class="muted">Gestão de pedidos</p>
+  {{template "formerror" .Errors}}
+  <form method="post" action="/login">
+    <div class="field">
+      <label for="f-username">Usuário</label>
+      <input id="f-username" name="username" type="text" value="{{.Data.Username}}" required autofocus autocomplete="username" maxlength="16">
+    </div>
+    <div class="field">
+      <label for="f-password">Senha</label>
+      <input id="f-password" name="password" type="password" required autocomplete="current-password">
+    </div>
+    <button type="submit" class="btn btn-primary btn-block">Entrar</button>
+  </form>
+</div>
+{{end}}

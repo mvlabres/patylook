@@ -1,0 +1,93 @@
+{{define "content"}}
+{{with .Data.Product}}
+<h1>{{if .ID}}Editar produto{{else}}Novo produto{{end}}</h1>
+<form method="post" action="{{if .ID}}/products/{{.ID}}{{else}}/products{{end}}" class="form"{{if not .ID}} enctype="multipart/form-data"{{end}}>
+  {{template "csrf" $.CSRF}}
+  {{template "formerror" $.Errors}}
+  {{template "field" (dict "Label" "Nome" "Name" "name" "Value" .Name "Errors" $.Errors "Required" true "Max" 150)}}
+  {{if .ID}}
+    {{template "field" (dict "Label" "SKU" "Name" "sku" "Value" .SKU "Errors" $.Errors "Required" true "Max" 45 "Hint" "O SKU nomeia a pasta das imagens e não pode ser alterado enquanto o produto tiver imagens")}}
+  {{else}}
+    {{template "field" (dict "Label" "SKU" "Name" "sku" "Value" .SKU "Errors" $.Errors "Required" true "Max" 45 "Hint" "Código único do produto. Também nomeia a pasta das imagens: images/products/SKU/")}}
+  {{end}}
+  <div class="field{{if index $.Errors "product_category_id"}} has-error{{end}}">
+    <label for="f-product_category_id">Categoria</label>
+    <select id="f-product_category_id" name="product_category_id" required>
+      <option value="">Selecione</option>
+      {{$cat := .CategoryID}}
+      {{range $.Data.Categories}}<option value="{{.ID}}" {{if eq .ID $cat}}selected{{end}}>{{.Name}}</option>{{end}}
+    </select>
+    {{with index $.Errors "product_category_id"}}<small class="field-error">{{.}}</small>{{end}}
+  </div>
+  {{template "field" (dict "Label" "Estoque" "Name" "stock" "Value" .Stock "Errors" $.Errors "Required" true "Type" "number" "Mode" "numeric")}}
+  <div class="field{{if index $.Errors "description"}} has-error{{end}}">
+    <label for="f-description">Descrição</label>
+    <textarea id="f-description" name="description" rows="3" maxlength="500">{{.Description}}</textarea>
+    {{with index $.Errors "description"}}<small class="field-error">{{.}}</small>{{end}}
+  </div>
+
+  {{if not .ID}}
+  <fieldset class="images-fieldset">
+    <legend>Imagens</legend>
+    <p class="muted">JPEG ou PNG, até {{$.Data.MaxMB}} MB cada. Serão convertidas para JPEG e salvas em <code>images/products/SKU/</code>.</p>
+    <div class="field{{if index $.Errors "main_image"}} has-error{{end}}">
+      <label for="f-main_image">Imagem principal (obrigatória)</label>
+      <input id="f-main_image" name="main_image" type="file" accept="image/jpeg,image/png" required>
+      <small class="hint">Vira <code>principal.jpg</code> e é o banner do produto no mostruário.</small>
+      {{with index $.Errors "main_image"}}<small class="field-error">{{.}}</small>{{end}}
+    </div>
+    <div class="field{{if index $.Errors "images"}} has-error{{end}}">
+      <label for="f-images">Imagens adicionais (opcional)</label>
+      <input id="f-images" name="images" type="file" accept="image/jpeg,image/png" multiple>
+      <small class="hint">Até {{$.Data.MaxExtra}} imagens; aparecem no carrossel do mostruário.</small>
+      {{with index $.Errors "images"}}<small class="field-error">{{.}}</small>{{end}}
+    </div>
+  </fieldset>
+  {{end}}
+
+  <div class="form-actions">
+    <button type="submit" class="btn btn-primary">Salvar</button>
+    <a class="btn" href="/products">Cancelar</a>
+  </div>
+</form>
+
+{{if .ID}}
+<h2>Imagens</h2>
+<p class="muted">Pasta: <code>images/products/{{.SKU}}/</code></p>
+{{if $.Data.Images}}
+<ul class="thumbs">
+  {{range $.Data.Images}}
+  <li>
+    <img src="{{.URL}}" alt="{{.FileName}}" loading="lazy">
+    <span class="thumb-name">{{if .IsMain}}Principal{{else}}{{.FileName}}{{end}}</span>
+    {{if not .IsMain}}
+    <form method="post" action="/products/{{.ProductID}}/images/{{.ID}}/delete" class="inline" data-confirm="Remover esta imagem?">
+      {{template "csrf" $.CSRF}}
+      <button type="submit" class="btn-link danger">Remover</button>
+    </form>
+    {{end}}
+  </li>
+  {{end}}
+</ul>
+{{else}}
+<p class="empty">Este produto ainda não tem imagens.</p>
+{{end}}
+
+<form method="post" action="/products/{{.ID}}/images" enctype="multipart/form-data" class="form">
+  {{template "csrf" $.CSRF}}
+  <div class="field{{if index $.Errors "main_image"}} has-error{{end}}">
+    <label for="f-main_image">{{if $.Data.HasMain}}Substituir imagem principal{{else}}Imagem principal (obrigatória){{end}}</label>
+    <input id="f-main_image" name="main_image" type="file" accept="image/jpeg,image/png">
+    {{with index $.Errors "main_image"}}<small class="field-error">{{.}}</small>{{end}}
+  </div>
+  <div class="field{{if index $.Errors "images"}} has-error{{end}}">
+    <label for="f-images">Adicionar imagens ao carrossel</label>
+    <input id="f-images" name="images" type="file" accept="image/jpeg,image/png" multiple>
+    <small class="hint">JPEG ou PNG, até {{$.Data.MaxMB}} MB cada; no máximo {{$.Data.MaxExtra}} imagens adicionais por produto.</small>
+    {{with index $.Errors "images"}}<small class="field-error">{{.}}</small>{{end}}
+  </div>
+  <div class="form-actions"><button type="submit" class="btn">Enviar imagens</button></div>
+</form>
+{{end}}
+{{end}}
+{{end}}

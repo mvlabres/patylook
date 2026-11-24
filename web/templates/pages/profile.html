@@ -1,0 +1,33 @@
+{{define "content"}}
+<h1>Meu perfil</h1>
+<dl class="details">
+  <div><dt>Nome</dt><dd>{{.User.Name}}</dd></div>
+  <div><dt>Usuário</dt><dd><code>{{.User.Username}}</code></dd></div>
+  <div><dt>Categoria</dt><dd>{{.User.CategoryName}}</dd></div>
+</dl>
+
+<h2>Alterar senha</h2>
+<p class="muted">Ao alterar a senha você será desconectado de todos os dispositivos.</p>
+<form method="post" action="/profile/password" class="form">
+  {{template "csrf" .CSRF}}
+  {{template "formerror" .Errors}}
+  <div class="field{{if index .Errors "current_password"}} has-error{{end}}">
+    <label for="f-current_password">Senha atual</label>
+    <input id="f-current_password" name="current_password" type="password" required autocomplete="current-password">
+    {{with index .Errors "current_password"}}<small class="field-error">{{.}}</small>{{end}}
+  </div>
+  <div class="form-grid">
+    <div class="field{{if index .Errors "new_password"}} has-error{{end}}">
+      <label for="f-new_password">Nova senha</label>
+      <input id="f-new_password" name="new_password" type="password" required autocomplete="new-password">
+      {{with index .Errors "new_password"}}<small class="field-error">{{.}}</small>{{end}}
+    </div>
+    <div class="field{{if index .Errors "confirm_password"}} has-error{{end}}">
+      <label for="f-confirm_password">Confirmar nova senha</label>
+      <input id="f-confirm_password" name="confirm_password" type="password" required autocomplete="new-password">
+      {{with index .Errors "confirm_password"}}<small class="field-error">{{.}}</small>{{end}}
+    </div>
+  </div>
+  <div class="form-actions"><button type="submit" class="btn btn-primary">Alterar senha</button></div>
+</form>
+{{end}}

@@ -1,0 +1,57 @@
+{{define "content"}}
+{{with .Data.Edited}}
+<h1>{{if .ID}}Editar usuário{{else}}Novo usuário{{end}}</h1>
+<form method="post" action="{{if .ID}}/users/{{.ID}}{{else}}/users{{end}}" class="form">
+  {{template "csrf" $.CSRF}}
+  {{template "formerror" $.Errors}}
+  {{template "field" (dict "Label" "Nome" "Name" "name" "Value" .Name "Errors" $.Errors "Required" true "Max" 100)}}
+  {{template "field" (dict "Label" "Usuário (login)" "Name" "username" "Value" .Username "Errors" $.Errors "Required" true "Max" 16 "Hint" "3 a 16 caracteres: letras, números, ponto, hífen ou sublinhado")}}
+  {{template "field" (dict "Label" "E-mail" "Name" "email" "Value" .Email "Errors" $.Errors "Max" 255 "Type" "email")}}
+  <div class="field{{if index $.Errors "user_category_id"}} has-error{{end}}">
+    <label for="f-user_category_id">Categoria</label>
+    <select id="f-user_category_id" name="user_category_id" required>
+      <option value="">Selecione</option>
+      {{$cat := .CategoryID}}
+      {{range $.Data.Categories}}<option value="{{.ID}}" {{if eq .ID $cat}}selected{{end}}>{{.Name}}</option>{{end}}
+    </select>
+    {{with index $.Errors "user_category_id"}}<small class="field-error">{{.}}</small>{{end}}
+  </div>
+  {{if not .ID}}
+    <div class="form-grid">
+      <div class="field{{if index $.Errors "password"}} has-error{{end}}">
+        <label for="f-password">Senha</label>
+        <input id="f-password" name="password" type="password" required autocomplete="new-password">
+        {{with index $.Errors "password"}}<small class="field-error">{{.}}</small>{{end}}
+      </div>
+      <div class="field{{if index $.Errors "confirm_password"}} has-error{{end}}">
+        <label for="f-confirm_password">Confirmar senha</label>
+        <input id="f-confirm_password" name="confirm_password" type="password" required autocomplete="new-password">
+        {{with index $.Errors "confirm_password"}}<small class="field-error">{{.}}</small>{{end}}
+      </div>
+    </div>
+  {{end}}
+  <div class="form-actions">
+    <button type="submit" class="btn btn-primary">Salvar</button>
+    <a class="btn" href="/users">Cancelar</a>
+  </div>
+</form>
+
+{{if .ID}}
+<h2>Redefinir senha</h2>
+<form method="post" action="/users/{{.ID}}/password" class="form" data-confirm="Redefinir a senha deste usuário? Ele será desconectado.">
+  {{template "csrf" $.CSRF}}
+  <div class="form-grid">
+    <div class="field">
+      <label for="f-new-password">Nova senha</label>
+      <input id="f-new-password" name="password" type="password" required autocomplete="new-password">
+    </div>
+    <div class="field">
+      <label for="f-new-confirm">Confirmar nova senha</label>
+      <input id="f-new-confirm" name="confirm_password" type="password" required autocomplete="new-password">
+    </div>
+  </div>
+  <div class="form-actions"><button type="submit" class="btn">Redefinir senha</button></div>
+</form>
+{{end}}
+{{end}}
+{{end}}

@@ -1,0 +1,90 @@
+{{define "order_row"}}
+<tr class="item-row">
+  <td>
+    <select name="product_id" class="item-product">
+      <option value="">Selecione um produto</option>
+      {{$selected := .ProductID}}
+      {{range .Products}}<option value="{{.ID}}" data-price="{{.CurrentPrice.Decimal}}" data-stock="{{.Stock}}" {{if eq .ID $selected}}selected{{end}}>{{.Name}} ({{.SKU}}) — {{moneyPtr .CurrentPrice}} · estoque {{.Stock}}</option>{{end}}
+    </select>
+  </td>
+  <td><input type="number" name="quantity" class="item-qty" min="1" step="1" value="{{.Quantity}}"></td>
+  <td><input type="text" name="item_discount" class="item-discount" inputmode="decimal" value="{{.Discount}}" placeholder="0,00"></td>
+  <td class="num item-total">R$ 0,00</td>
+  <td><button type="button" class="btn-link danger remove-row" aria-label="Remover item">Remover</button></td>
+</tr>
+{{end}}
+
+{{define "content"}}
+<h1>Novo pedido</h1>
+{{with .Data.Form}}
+<form method="post" action="/orders" class="form" id="order-form">
+  {{template "csrf" $.CSRF}}
+  {{template "formerror" $.Errors}}
+
+  <div class="form-grid">
+    <div class="field{{if index $.Errors "customer_id"}} has-error{{end}}">
+      <label for="f-customer_id">Cliente</label>
+      <select id="f-customer_id" name="customer_id" required>
+        <option value="">Selecione</option>
+        {{$cid := .CustomerID}}
+        {{range $.Data.Customers}}<option value="{{.ID}}" {{if eq .ID $cid}}selected{{end}}>{{.Name}} — {{cpf .Document}}</option>{{end}}
+      </select>
+      {{with index $.Errors "customer_id"}}<small class="field-error">{{.}}</small>{{end}}
+    </div>
+    <div class="field{{if index $.Errors "payment_type_id"}} has-error{{end}}">
+      <label for="f-payment_type_id">Forma de pagamento</label>
+      <select id="f-payment_type_id" name="payment_type_id" required>
+        <option value="">Selecione</option>
+        {{$pid := .PaymentTypeID}}
+        {{range $.Data.PaymentTypes}}<option value="{{.ID}}" data-surcharge="{{.SurchargePercent.Decimal}}" {{if eq .ID $pid}}selected{{end}}>{{.Name}}{{if .SurchargePercent}} (+{{percent .SurchargePercent}}){{end}}</option>{{end}}
+      </select>
+      {{with index $.Errors "payment_type_id"}}<small class="field-error">{{.}}</small>{{end}}
+    </div>
+  </div>
+
+  <h2>Itens</h2>
+  {{with index $.Errors "items"}}<div class="alert alert-error">{{.}}</div>{{end}}
+  {{if not $.Data.Products}}<div class="alert alert-error">Nenhum produto disponível: é preciso ter produto ativo, com estoque e preço vigente.</div>{{end}}
+  <div class="table-wrap">
+  <table class="items">
+    <thead><tr><th>Produto</th><th>Qtd.</th><th>Desconto (R$)</th><th class="num">Total</th><th></th></tr></thead>
+    <tbody id="item-rows">
+      {{range .Rows}}{{template "order_row" (dict "Products" $.Data.Products "ProductID" .ProductID "Quantity" .Quantity "Discount" .Discount)}}{{end}}
+    </tbody>
+  </table>
+  </div>
+  <p><button type="button" class="btn" id="add-row">+ Adicionar item</button></p>
+
+  <div class="form-grid">
+    <div class="field{{if index $.Errors "discount"}} has-error{{end}}">
+      <label for="f-discount">Desconto no pedido (R$)</label>
+      <input id="f-discount" name="discount" type="text" inputmode="decimal" value="{{.Discount}}" placeholder="0,00">
+      {{with index $.Errors "discount"}}<small class="field-error">{{.}}</small>{{end}}
+    </div>
+    <div class="field">
+      <label for="f-notes">Observações</label>
+      <textarea id="f-notes" name="notes" rows="3" maxlength="2000">{{.Notes}}</textarea>
+    </div>
+  </div>
+
+  <dl class="totals" id="totals">
+    <div><dt>Subtotal</dt><dd id="t-subtotal">R$ 0,00</dd></div>
+    <div><dt>Desconto</dt><dd id="t-discount">R$ 0,00</dd></div>
+    <div><dt>Acréscimo do pagamento</dt><dd id="t-addition">R$ 0,00</dd></div>
+    <div class="grand"><dt>Total</dt><dd id="t-total">R$ 0,00</dd></div>
+  </dl>
+  <p class="muted">Valores de prévia. Preço, custo e estoque são conferidos e gravados pelo servidor ao salvar.</p>
+
+  <div class="form-actions">
+    <button type="submit" class="btn btn-primary">Criar pedido</button>
+    <a class="btn" href="/orders">Cancelar</a>
+  </div>
+</form>
+
+<template id="row-template">
+  {{template "order_row" (dict "Products" $.Data.Products "ProductID" 0 "Quantity" "1" "Discount" "")}}
+</template>
+{{end}}
+{{end}}
+
+{{define "scripts"}}<script src="/static/js/order.js"></script>{{end}}

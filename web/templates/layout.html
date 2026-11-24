@@ -1,0 +1,39 @@
+{{define "layout"}}<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{.Title}} · Patylook</title>
+  <link rel="stylesheet" href="/static/css/app.css">
+</head>
+<body>
+{{if .User}}
+<header class="topbar">
+  <a class="brand" href="/">Patylook</a>
+  <nav class="nav">
+    <a href="/" class="{{if eq .Active "dashboard"}}active{{end}}">Painel</a>
+    <a href="/orders" class="{{if eq .Active "orders"}}active{{end}}">Pedidos</a>
+    <a href="/products" class="{{if eq .Active "products"}}active{{end}}">Produtos</a>
+    <a href="/showcase" class="{{if eq .Active "showcase"}}active{{end}}">Mostruário</a>
+    <a href="/categories" class="{{if eq .Active "categories"}}active{{end}}">Categorias</a>
+    <a href="/customers" class="{{if eq .Active "customers"}}active{{end}}">Clientes</a>
+    <a href="/payment-types" class="{{if eq .Active "payment-types"}}active{{end}}">Pagamentos</a>
+    {{if .User.Admin}}<a href="/users" class="{{if eq .Active "users"}}active{{end}}">Usuários</a>{{end}}
+  </nav>
+  <div class="user-menu">
+    <a href="/profile" class="{{if eq .Active "profile"}}active{{end}}">{{.User.Name}}</a>
+    <form method="post" action="/logout" class="inline">
+      {{template "csrf" .CSRF}}
+      <button type="submit" class="btn btn-small">Sair</button>
+    </form>
+  </div>
+</header>
+{{end}}
+<main class="container{{if not .User}} auth{{end}}">
+  {{with .Flash}}<div class="alert alert-{{.Kind}}" role="status">{{.Message}}</div>{{end}}
+  {{template "content" .}}
+</main>
+<script src="/static/js/app.js"></script>
+{{block "scripts" .}}{{end}}
+</body>
+</html>{{end}}

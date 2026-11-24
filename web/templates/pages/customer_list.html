@@ -1,0 +1,41 @@
+{{define "content"}}
+<div class="section-head">
+  <h1>Clientes</h1>
+  <a class="btn btn-primary" href="/customers/new">Novo cliente</a>
+</div>
+
+<form method="get" action="/customers" class="search">
+  <input type="search" name="q" value="{{.Data.Query}}" placeholder="Buscar por nome, CPF, e-mail ou telefone">
+  <button class="btn" type="submit">Buscar</button>
+</form>
+
+{{if .Data.Customers}}
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Nome</th><th>CPF</th><th>Telefone</th><th>E-mail</th><th>Status</th><th></th></tr></thead>
+  <tbody>
+  {{range .Data.Customers}}
+    <tr class="{{if not .IsActive}}inactive{{end}}">
+      <td>{{.Name}}</td>
+      <td>{{cpf .Document}}</td>
+      <td>{{.Phone}}</td>
+      <td>{{.Email}}</td>
+      <td>{{if .IsActive}}<span class="badge badge-completed">Ativo</span>{{else}}<span class="badge badge-canceled">Inativo</span>{{end}}</td>
+      <td class="actions">
+        <a href="/customers/{{.ID}}/edit">Editar</a>
+        <form method="post" action="/customers/{{.ID}}/active" class="inline" {{if .IsActive}}data-confirm="Desativar este cliente?"{{end}}>
+          {{template "csrf" $.CSRF}}
+          <input type="hidden" name="active" value="{{if .IsActive}}0{{else}}1{{end}}">
+          <button type="submit" class="btn-link">{{if .IsActive}}Desativar{{else}}Ativar{{end}}</button>
+        </form>
+      </td>
+    </tr>
+  {{end}}
+  </tbody>
+</table>
+</div>
+{{template "pagination" .Data.Pager}}
+{{else}}
+<p class="empty">Nenhum cliente encontrado.</p>
+{{end}}
+{{end}}
